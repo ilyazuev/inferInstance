@@ -1,0 +1,661 @@
+== Aims and objectives ==
+
+* Filtering elements (objects) of heterogeneous lists by type classes.
+* Creation of "real" heterogeneous lists with full functionality.
+
+== Problem Description ==
+
+We are implementing the project in Haskell. And within the framework of the project, there was a need to use the OOP paradigm. 
+Any discussion related to the problem, whether or not productive, lies beyond the scope of this article. 
+The most important thing for our project, to solve our problems specifically, is that the OOP approach has come up.
+
+However, the impossibility of storing objects in universal, so-called heterogeneous lists came as a stumbling block to us. 
+It is possible to store some elements in principle, but it is not possible to fully use them, even when using existential types. 
+This problem is quite widely known in Haskell. On one of the pages on Stack Overflow, I found the following comment: 
+"You can use existentials, but then you cannot do anything with the data after pattern matching on them", which itself quite categorically characterizes the situation. 
+I struggled quite long with the problem and, unfortunately, could not find any solution to it on the Internet. 
+I studied a large number of articles and did a lot of experimenting. 
+Below you may see the list of materials used by me in the course of preparation. 
+Time and effort were not wasted while mastering Haskell, but the most pleasing outcome is that the task has been solved. 
+And it is despite the fact that it was done crudely and only satisfies our concrete case.
+
+== Problem Solving ==
+
+Haskell is inherently a functional programming language. 
+However, it will be multi-paradigmatic, if only for our project.
+
+So, let's take as a basis the following scheme. 
+In my view, this is a traditional way in Haskell to simulate OOP. 
+We will use `data` and / or `newtype` in order to define and store object fields. 
+To make the object functional, we will use class types (`class`) taken as equivalent to interfaces in traditional OO languages. 
+Types, classes, and instances (`instance`) together shall correspond to classes in OOP.
+
+The whole essence of the idea will be presented only in several functions and arrays. 
+Nevertheless, in order to show that everything works (and how it works), we will write a small project. 
+To make clear that everything works correctly, we will make the project objects "multi-inherited".
+
+I will try to make the project as simple as possible. 
+The main goal of the project is to convey the essence of the concept.
+
+So, let's get started. 
+First, I will describe the structure of the object tree:
+
+* `RenderableBase` is an abstract type that is responsible for layout and drawing;
+* `SerializableBase` is an abstract type that is responsible for serialization.
+
+Objects of the following types will be included in the heterogeneous list:
+
+* `Circle`, inherited from` RenderableBase` and `SerializableBase`;
+* `Rectangle`, inherited from` RenderableBase`;
+* `Triangle`, inherited from` RenderableBase`.
+
+Let's present the inheritances scheme in the form of a small list:
+
+* `SerializableBase > Circle`
+* `RenderableBase > Circle`
+* `RenderableBase > Rectangle`
+* `RenderableBase > Triangle`
+
+The inheritance hierarchy does not play any role in the implementation of the concept and is supplied only to give the project a sense of an object-oriented approach.
+
+Now I will describe the types of classes:
+
+* `ClsShape` is designed to combine objects into a heterogeneous list;
+* `ClsRenderable` describes the rendering function;
+* `ClsClickable` describes a function-response to a mouse click;
+* `ClsSerializable` describes the function of object serialization.
+
+Here is something more important:
+
+* objects of `Circle`, `Rectangle` and `Triangle` types can be drawn, that is, they implement the `render` function;
+* You can click on objects of `Rectangle` and `Triangle` types (Note: You cannot click on objects of `Circle` type, that is, a `Circle` type does not implement the class `ClsClickable`);
+* an object of `Circle` type can be serialized (class `ClsSerializable`).
+
+Let's present a functionality scheme in the form of a small list that shows which class of what type is implemented:
+
+* `ClsRenderable > Circle`
+* `ClsRenderable > Rectangle`
+* `ClsRenderable > Triangle`
+* `ClsClickable > Rectangle`
+* `ClsClickable > Triangle`
+* `ClsSerializable > Circle`
+
+Now we will start writing the code. 
+First, we will include all the required GHC extensions and import libraries:
+
+<haskell>
+{-# LANGUAGE GADTs, ConstraintKinds, KindSignatures #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleInstances #-}
+{-# LANGUAGE DuplicateRecordFields, RecordWildCards #-}
+module Main where
+
+import Data.Typeable (Typeable, typeOf)
+import GHC.Exts (Constraint)
+import Unsafe.Coerce (unsafeCoerce)
+</haskell>
+
+Yes, we will need the unsafeCoerce function of unsafe types, but more on this later. 
+All the code is concentrated in one file, however, let's imagine that everything is broken into modules. 
+By doing this, I would like to show that the project is scalable. 
+First, we will describe all classes, basic abstract types and data types for which we will create objects and also instantiate each type. 
+At this stage everything is trivial. We use the "traditional" approach to imitate the OOP in Haskell:
+
+<haskell>
+-- module Base where --
+class ClsShape shape
+
+-- module RenderableBase where --
+class ClsRenderable a where render::a->String
+data RenderableBase = RenderableBase {coords::String} deriving Show
+instance ClsRenderable RenderableBase where render a = coords a
+
+-- module ClickableBase where --
+class ClsClickable a where click::a->String
+
+-- module SerializableBase where --
+class ClsSerializable a where serialize::a->String
+data SerializableBase = SerializableBase {serializedData::String} deriving Show
+instance ClsSerializable SerializableBase where serialize a = serializedData a
+
+-- module Circle where --
+data Circle = Circle { 
+    name :: String,
+    renderableBase :: RenderableBase,
+    serializableBase :: SerializableBase
+    } deriving Show
+instance ClsShape Circle
+instance ClsRenderable Circle where 
+    render Circle{..} = "Circle " ++ name ++ " " ++ render renderableBase
+instance ClsSerializable Circle where 
+    serialize Circle{..} = "Circle " ++ name ++ " " ++ serialize serializableBase
+
+-- module Rectangle where --
+data Rectangle = Rectangle { 
+    name :: String,
+    renderableBase :: RenderableBase
+    } deriving Show
+instance ClsShape Rectangle
+instance ClsRenderable Rectangle where 
+    render Rectangle{..} = "Rectangle " ++ name ++ " " ++ render renderableBase
+instance ClsClickable Rectangle where 
+    click Rectangle{..} = "Rectangle " ++ name ++ " " ++ coords renderableBase ++ " clicked"
+
+-- module Triangle where --
+data Triangle = Triangle { 
+    name :: String,
+    renderableBase :: RenderableBase
+    } deriving Show
+instance ClsShape Triangle
+instance ClsRenderable Triangle where 
+    render Triangle{..} = "Triangle " ++ name ++ " " ++ render renderableBase
+instance ClsClickable Triangle where 
+    click Triangle{..} = "Triangle " ++ name ++ " " ++ coords renderableBase ++ " clicked"
+</haskell>
+
+Now, it will become a little more interesting. Let's create a wrapper type to implement a heterogeneous list:
+
+<haskell>
+-- module InferInstanceOf where --
+data Wrap (constraint :: * -> Constraint) where 
+    Wrp :: (Show a, Typeable a, constraint a) => a -> Wrap constraint
+instance Show (Wrap a) where show (Wrp a) = show a
+</haskell>
+
+`Show` does not play any role and serves only debug purposes.
+But the phrase `(constraint :: * -> Constraint)` is much more interesting.
+Here we are saying, that as a subtype for the type `Wrap` we will use a certain class.
+That is, classes in this case will play the role of types.
+
+Now, we will create the heterogeneous list itself:
+
+<haskell>
+-- module Main where --
+testData :: [Wrap ClsShape]
+testData = [
+    Wrp$ Circle    "crcl_1"  (RenderableBase "(1, 1)") (SerializableBase "Crcl1"),
+    Wrp$ Circle    "crcl_2"  (RenderableBase "(2, 2)") (SerializableBase "Crcl2"),
+    Wrp$ Rectangle "rect_1"  (RenderableBase "(3, 3)"),
+    Wrp$ Rectangle "rect_2"  (RenderableBase "(4, 4)"),
+    Wrp$ Triangle  "trngl_1" (RenderableBase "(5, 5)"),
+    Wrp$ Triangle  "trngl_2" (RenderableBase "(6, 6)")
+    ]
+</haskell>
+
+Firstly, the list can be extended dynamically during the program execution. 
+Secondly, we immediately lose all the information about the functionality of each object, that is, all dictionaries for the classes `ClsRenderable`,` ClsClickable` and `ClsSerializable`. 
+The only classes left are completely uninformative: `ClsShape`,` Typeable` (about it a bit later) and `Show` for debugging purposes.
+
+The most that we can do now is simply printing the list of objects:
+
+<haskell>
+main = do
+    putStr "all objects: "
+    print$ map (\(Wrp a)->show a) testData
+</haskell>
+	
+''all objects: ["Circle {name = \"crcl_1\", renderableBase = RenderableBase {coords = \"(1, 1)\"} ...''
+
+Now we will turn to the most interesting part, which will show the whole essence of the idea of working with heterogeneous lists. 
+Let’s define the lists of types distributed by classes:
+
+<haskell>
+renderableTypes:: [Wrap ClsRenderable]
+renderableTypes = [
+    Wrp (undefined::Circle),
+    Wrp (undefined::Rectangle),
+    Wrp (undefined::Triangle)
+    ]
+
+clickableTypes:: [Wrap ClsClickable]
+clickableTypes = [
+    Wrp (undefined::Rectangle),
+    Wrp (undefined::Triangle)
+    ]
+
+serializableTypes:: [Wrap ClsSerializable]
+serializableTypes = [
+    Wrp (undefined::Circle)
+    ]
+</haskell>
+
+It is done manually for the time being. 
+Later this work will be taken over by TemplateHaskell. 
+Moreover, later we will try to pack these lists into a heterogeneous list of `HList` type, in order not to use inappropriate functions here. 
+So, each element of these lists is defined as `undefined`, that is, we are not interested in the data.
+We need to store information about the type and, more importantly, it is vital for us not to lose information about the functionality, that is, we need to somehow save the dictionaries.
+
+Let’s move ahead. 
+The first stage of our concept is to learn how to filter our heterogeneous list by class. 
+For this purpose, we will write the following functions:
+
+<haskell>
+-- module InferInstanceOf where --
+instanceOf::Typeable a => [Wrap (constraint :: * -> Constraint)] -> a -> Bool
+instanceOf list a = not. null $ selectType list a
+
+instanceWrapOf::
+    [Wrap (constraint :: * -> Constraint)] ->
+    Wrap (constraint2 :: * -> Constraint) -> Bool
+instanceWrapOf list (Wrp a) = instanceOf list a
+
+selectType::Typeable a => 
+    [Wrap (constraint :: * -> Constraint)] ->
+    a ->
+    [Wrap (constraint :: * -> Constraint)]
+selectType list a = filter inList list
+    where inList (Wrp b) = typeOf a == typeOf b
+</haskell>
+
+Here, we accept an object (or a wrapper with an object), a list of types belonging to a certain class, and filter this list by type. 
+That's why we needed `Typeable` and `typeOf` from the Data.Typeable package. 
+In this case everything is simple: if there is a type of our object in the list, then the object belongs to the corresponding class. 
+(Please mind it that Haskell, after compiling, completely forgets about classes.)
+
+So, now we can do a little more, for example, filter our list by class and print the sample:
+
+<haskell>
+main = do
+    -- ...
+    putStr "\nclickable objects: "
+    print$ map show$ filter (\(Wrp a)->instanceOf clickableTypes a) testData
+    putStr "\nserializable objects: "
+    print$ map show$ filter (instanceWrapOf serializableTypes) testData
+</haskell>
+	
+That is, if we need objects of class `ClsClickable` or class` ClsSerializable`, that is, objects that have strictly defined functionality, we will get them. 
+And we can only ... print them. 
+Nothing more. 
+But this is something more than we expected from heterogeneous lists earlier.
+
+Let’s go ahead.
+
+Nevertheless, we still need somehow to work with our objects. 
+And for this purpose, we will write the following function. 
+And it will lay the foundations of the whole concept, the one for which everything was started:
+
+<haskell>
+-- module Main (later InferInstanceOf) where --
+asInstanceOfClickable a =
+    if null typeOfClass then
+        Nothing
+    else
+        Just. unwrap. head$ typeOfClass
+    where
+        typeOfClass = selectType clickableTypes a
+        unwrap (Wrp b) = substitute a b
+        substitute::forall t1 t2. (Typeable t2, Show t2, ClsClickable t2) => 
+            t1 ->
+            t2 ->
+            Wrap ClsClickable
+        substitute x y = Wrp (unsafeCoerce x::t2)
+</haskell>
+
+This function is to be subject to generalization and we will do this below. 
+But now let's try to understand what is happening here. 
+We accept the object. 
+Next, by means of filtering, we analyze whether this object belongs to the class. 
+If applicable, we unpack the type (`undefined :: some type`) from the corresponding wrapper. 
+We perform the type substitution, that is, we confirm through the function unsafeCoerce that our object is of the type that instantiates the requested class. 
+And ... repackage our object into a new wrapper. 
+In a wrapper possessing the needed functionality. 
+In other words, we substitute the corresponding dictionaries for our object "on the fly". 
+And we return our object in a new package inside the Maybe type.
+
+Now, we can fully work with our object from a heterogeneous list:
+
+<haskell>
+main = do
+    -- ...
+    putStr "\ncall click function: "
+    print$ map (\a->case a of Just (Wrp a)->click a; Nothing->"")$ 
+            map (\(Wrp a)->asInstanceOfClickable a ) testData
+</haskell>
+	
+Voila.
+
+One more step. 
+We will generalize our function, that is, instead of the highly specialized function `asInstanceOfClickable`, we will write the general function` asInstanceOf`:
+
+<haskell>
+asInstanceOf::Typeable a => 
+    [Wrap (constraint :: * -> Constraint)] ->
+    a ->
+    Maybe (Wrap (constraint :: * -> Constraint))
+asInstanceOf list a =
+    if null typeOfClass then
+        Nothing
+    else
+        Just. unwrap. head$ typeOfClass
+    where
+        typeOfClass = selectType list a
+        unwrap (Wrp b) = substitute a b
+        substitute::forall t1 t2 constraint. 
+            (Typeable t2, Show t2, (constraint :: * -> Constraint) t2) =>
+            t1 ->
+            t2 ->
+            Wrap (constraint :: * -> Constraint)
+        substitute x y = Wrp (unsafeCoerce x::t2)
+</haskell>
+		
+... and let’s do a couple more experiments:
+
+<haskell>
+main = do
+    -- ...
+    putStr "\ncall render function: "
+    print$ map (\a->case a of Just (Wrp a)->render a; Nothing->"")$ 
+        map (\(Wrp a)->asInstanceOf renderableTypes a ) testData
+    putStr "\ncall serialize function: "
+    print$ map (\a->case a of Just (Wrp a)->serialize a; Nothing->"")$ 
+        map (\(Wrp a)->asInstanceOf serializableTypes a ) testData
+</haskell>
+	
+... or apply the transformation sequentially:
+
+<haskell>
+main = do
+    -- ...
+    putStr "\ncall click and render functions: "
+    print$ 
+        map (\(a, b)-> 
+            "click: " ++ 
+            (case a of Just (Wrp a)->click a; Nothing->"-") ++ 
+            "; render: " ++ 
+            (case b of Just (Wrp b)->render b; Nothing->"-") )$
+        map (\(Wrp a)->(asInstanceOf clickableTypes a, asInstanceOf renderableTypes a) ) 
+        testData
+</haskell>
+
+... or apply the transformation sequentially:
+
+<haskell>
+main = do
+    -- ...
+    putStr "\ncall click and render functions: "
+    print$ 
+        map (\w->"click: " ++
+                case w of
+                    Just (Wrp a)->
+                        click a ++ 
+                        "; render: " ++ 
+                        case asInstanceOf renderableTypes a of 
+                            Just (Wrp d)->render d
+                            Nothing->"-"
+                    Nothing->"-"
+            )$
+        map (\(Wrp a)->asInstanceOf clickableTypes a ) testData
+</haskell>
+
+Of course, the code written "in the heat of the process" is not devoid of flaws. 
+Everything should be packed into the appropriate module, for example `Data.InferInstanceOf` or` Data.InstanceOf`. 
+Such things as creating lists of types can be easily automated with TemplateHaskell. 
+For a better understanding, you can use `Data.Maybe` or interact with` Maybe` in the monadic style. 
+It goes without saying that for the current project, I will personally carry out this work. 
+But what exists already will be of great help to our project.
+
+And the most important thing. 
+I tried to move Haskell a little towards a multi-paradigm. 
+Why so?  
+Because I myself needed it and it seemed interesting to implement.
+
+In conclusion, I want to say that many different approaches have been tested in the process of finding the solution to the problem. 
+For example, I tried to solve the problem by using families of types, using reflection (`Data.Reflection`), using` Dict` from `Data.Constraint`, using `cast`, using `Data.Dynamic` and others. 
+However, every time I would come to a standstill. Haskell vehemently defends its system of types and rigidly suppresses any attempts to circumvent its defense.
+
+I would be happy if this article is of any use to someone.
+
+== List of References Used in the Preparation Process ==
+
+[https://gist.github.com/orionll/0f60e891fe7ac306a002 Typeclass example · GitHub]
+
+[https://stackoverflow.com/questions/22847740/use-of-unsafecoerce haskell - Use of &#39;unsafeCoerce&#39; - Stack Overflow]
+
+[https://stackoverflow.com/questions/32481418/unsafe-entailment-with-haskell-constraints ghc - Unsafe entailment with Haskell constraints - Stack Overflow]
+
+[https://www.tutel.me/c/programming/questions/32481418/unsafe+entailment+with+haskell+constraints unsafe entailment with haskell constraints www.tutel.me]
+
+[https://www.tutel.me/c/programming/questions/29482576/turning+a+dict+into+a+constraint turning a dict into a constraint www.tutel.me]
+
+[https://gist.github.com/sacundim/5386823 Toy instructional example of Haskell GADTs: simple dynamic types. · GitHub]
+
+[https://arxiv.org/pdf/cs/0509027.pdf OOHaskell - 0509027.pdf]
+
+[http://www.rubendegooijer.nl/posts/2013-04-06-haskell-oop.html OOP in Haskell: implementing wxHaskell in Haskell]
+
+[https://www.microsoft.com/en-us/research/publication/object-oriented-style-overloading-for-haskell/ Object-Oriented Style Overloading for Haskell - Microsoft Research]
+
+[https://arxiv.org/abs/cs/0509027 encapsulation, mutable state, inheritance, overriding, statically checked implicit and explicit subtyping, and so on]
+
+[https://github.com/nkaretnikov/OOHaskell/blob/master/samples/CircBuffer.hs OOHaskell/CircBuffer.hs at master · nkaretnikov/OOHaskell · GitHub]
+
+[https://github.com/andorp/oo-haskell/blob/master/src/Store.hs oo-haskell/Store.hs at master · andorp/oo-haskell · GitHub]
+
+[https://stackoverflow.com/questions/22847740/use-of-unsafecoerce newtype Monoid example haskell - Use of &#39;unsafeCoerce&#39; - Stack Overflow]
+
+[https://stackoverflow.com/questions/11258536/how-to-put-constraints-on-the-associated-data haskell - How to put constraints on the associated data? - Stack Overflow]
+
+[http://www.haskellforall.com/2012/05/scrap-your-type-classes.html Haskell for all: Scrap your type classes]
+
+[http://blog.omega-prime.co.uk/2011/09/10/constraint-kinds-for-ghc/ Constraint Kinds for GHC]
+
+[https://stackoverflow.com/questions/20997745/how-do-i-make-an-heterogeneous-list-in-haskell-originally-in-java typeclass - How do I make an heterogeneous list in Haskell? (originally in Java) - Stack Overflow]
+
+[https://stackoverflow.com/questions/31317159/constraintkinds-explained-on-a-super-simple-example haskell - ConstraintKinds explained on a super simple example - Stack Overflow]
+
+[https://wiki.haskell.org/OOP_vs_type_classes OOP vs type classes - HaskellWiki]
+
+[https://wiki.haskell.org/Heterogenous_collections Heterogenous collections - HaskellWiki]
+
+[https://wiki.haskell.org/How_to_work_on_lists How to work on lists - HaskellWiki]
+
+[https://jeltsch.wordpress.com/2013/02/09/some-interesting-features-of-haskells-type-system/ Some interesting features of Haskell’s type system | Wolfgang Jeltsch]
+
+[http://chrisdone.com/posts/data-typeable Typeable and Data in Haskell]
+
+[https://wiki.haskell.org/GHC/Type_families#Detailed_definition_of_type_synonym_families GHC/Type families - HaskellWiki]
+
+[https://stackoverflow.com/questions/5396783/get-a-list-of-the-instances-in-a-type-class-in-haskell introspection - Get a list of the instances in a type class in Haskell - Stack Overflow]
+
+[https://downloads.haskell.org/~ghc/7.8.4/docs/html/users_guide/constraint-kind.html 7.12. The Constraint kind]
+
+[http://andrew.gibiansky.com/blog/haskell/haskell-typeclasses/#_converting_between_numeric_types Typeclasses: Polymorphism in Haskell - Andrew Gibiansky]
+
+[https://stackoverflow.com/questions/20576596/tagging-functions-in-haskell/20576712#20576712 Tagging functions in Haskell - Stack Overflow]
+
+[https://stackoverflow.com/questions/27008046/allowambiguoustypes-and-propositional-equality-whats-going-on-here haskell - AllowAmbiguousTypes and propositional equality: what&#39;s going on here? - Stack Overflow]
+
+[https://ocharles.org.uk/blog/posts/2014-12-12-type-families.html 24 Days of GHC Extensions: Type Families]
+
+[https://wiki.haskell.org/GHC/AdvancedOverlap GHC/AdvancedOverlap - HaskellWiki]
+
+[https://stackoverflow.com/questions/28243383/how-can-i-read-the-metadata-of-a-type-at-runtime haskell - How can I read the metadata of a type at runtime? - Stack Overflow]
+
+[https://www.schoolofhaskell.com/user/thoughtpolice/using-reflection Reflecting values to types and back - School of Haskell | School of Haskell]
+
+[https://www.schoolofhaskell.com/school/to-infinity-and-beyond/pick-of-the-week/type-families-and-pokemon Type Families and Pokemon. - School of Haskell | School of Haskell]
+
+[https://wiki.haskell.org/GHC/Type_families GHC/Type families - HaskellWiki]
+
+
+== Source Code ==
+
+Below is the entire source code. 
+You can copy it to a file (for example, `testInstanceOfClass.hs`) and run the` runhaskell testInstanceOfClass.hs` command:
+
+<haskell>
+{-# LANGUAGE GADTs, ConstraintKinds, KindSignatures #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleInstances #-}
+{-# LANGUAGE DuplicateRecordFields, RecordWildCards #-}
+module Main where
+
+import Data.Typeable (Typeable, typeOf)
+import GHC.Exts (Constraint)
+import Unsafe.Coerce (unsafeCoerce)
+
+-- module Base where --
+class ClsShape shape
+
+-- module RenderableBase where --
+class ClsRenderable a where 
+    render::a->String
+data RenderableBase = RenderableBase {coords::String} deriving Show
+instance ClsRenderable RenderableBase where 
+    render a = coords a
+
+-- module ClickableBase where --
+class ClsClickable a where 
+    click::a->String
+
+-- module SerializableBase where --
+class ClsSerializable a where 
+    serialize::a->String
+data SerializableBase = SerializableBase {serializedData::String} deriving Show
+instance ClsSerializable SerializableBase where 
+    serialize a = serializedData a
+
+-- module Circle where --
+data Circle = Circle { 
+    name :: String, 
+    renderableBase :: RenderableBase, 
+    serializableBase :: SerializableBase 
+    } deriving Show
+instance ClsShape Circle
+instance ClsRenderable Circle where 
+    render Circle{..} = "Circle " ++ name ++ " " ++ render renderableBase
+instance ClsSerializable Circle where 
+    serialize Circle{..} = "Circle " ++ name ++ " " ++ serialize serializableBase
+
+-- module Rectangle where --
+data Rectangle = Rectangle { 
+    name :: String, 
+    renderableBase :: RenderableBase 
+    } deriving Show
+instance ClsShape Rectangle
+instance ClsRenderable Rectangle where 
+    render Rectangle{..} = "Rectangle " ++ name ++ " " ++ render renderableBase
+instance ClsClickable Rectangle where 
+    click Rectangle{..} = "Rectangle " ++ name ++ " " ++ coords renderableBase ++ " clicked"
+
+-- module Triangle where --
+data Triangle = Triangle { 
+    name :: String, 
+    renderableBase :: RenderableBase 
+    } deriving Show
+instance ClsShape Triangle
+instance ClsRenderable Triangle where 
+    render Triangle{..} = "Triangle " ++ name ++ " " ++ render renderableBase
+instance ClsClickable Triangle where 
+    click Triangle{..} = "Triangle " ++ name ++ " " ++ coords renderableBase ++ " clicked"
+
+-- module InferInstanceOf where --
+data Wrap (constraint :: * -> Constraint) where 
+    Wrp :: (Show a, Typeable a, constraint a) => a -> Wrap constraint
+instance Show (Wrap a) where 
+    show (Wrp a) = show a
+
+-- module Main where --
+testData :: [Wrap ClsShape]
+testData = [
+    Wrp$ Circle    "crcl_1"  (RenderableBase "(1, 1)") (SerializableBase "Crcl1"),
+    Wrp$ Circle    "crcl_2"  (RenderableBase "(2, 2)") (SerializableBase "Crcl2"),
+    Wrp$ Rectangle "rect_1"  (RenderableBase "(3, 3)"),
+    Wrp$ Rectangle "rect_2"  (RenderableBase "(4, 4)"),
+    Wrp$ Triangle  "trngl_1" (RenderableBase "(5, 5)"),
+    Wrp$ Triangle  "trngl_2" (RenderableBase "(6, 6)")
+    ]
+
+renderableTypes:: [Wrap ClsRenderable]
+renderableTypes = [
+    Wrp (undefined::Circle), 
+    Wrp (undefined::Rectangle), 
+    Wrp (undefined::Triangle)
+    ]
+
+clickableTypes:: [Wrap ClsClickable]
+clickableTypes = [
+    Wrp (undefined::Rectangle), 
+    Wrp (undefined::Triangle)
+    ]
+
+serializableTypes:: [Wrap ClsSerializable]
+serializableTypes = [
+    Wrp (undefined::Circle)
+    ]
+
+-- module InferInstanceOf where --
+instanceOf::Typeable a => [Wrap (constraint :: * -> Constraint)] -> a -> Bool
+instanceOf list a = not. null $ selectType list a
+
+instanceWrapOf::[Wrap (constraint :: * -> Constraint)] -> Wrap (constraint2 :: * -> Constraint) -> Bool
+instanceWrapOf list (Wrp a) = instanceOf list a
+
+selectType::Typeable a => [Wrap (constraint :: * -> Constraint)] -> a -> [Wrap (constraint :: * -> Constraint)]
+selectType list a = filter inList list
+    where inList (Wrp b) = typeOf a == typeOf b
+
+-- module InferInstanceOf where --
+-- asInstanceOfClickable: only as example
+asInstanceOfClickable a =
+    if null typeOfClass then
+        Nothing
+    else
+        Just. unwrap. head$ typeOfClass
+    where
+        typeOfClass = selectType clickableTypes a
+        unwrap (Wrp b) = substitute a b
+        substitute::forall t1 t2. (Typeable t2, Show t2, ClsClickable t2) => t1 -> t2 -> Wrap ClsClickable
+        substitute x y = Wrp (unsafeCoerce x::t2)
+
+asInstanceOf::Typeable a => [Wrap (constraint :: * -> Constraint)] -> a -> Maybe (Wrap (constraint :: * -> Constraint))
+asInstanceOf list a =
+    if null typeOfClass then
+        Nothing
+    else
+        Just. unwrap. head$ typeOfClass
+    where
+        typeOfClass = selectType list a
+        unwrap (Wrp b) = substitute a b
+        substitute::forall t1 t2 constraint. (Typeable t2, Show t2, (constraint :: * -> Constraint) t2) => t1 -> t2 -> Wrap (constraint :: * -> Constraint)
+        substitute x y = Wrp (unsafeCoerce x::t2)
+
+-- module Main where --
+main = do
+    putStr "all objects: "
+    print$ map (\(Wrp a)->show a) testData
+    putStr "\nclickable objects: "
+    print$ map show$ filter (\(Wrp a)->instanceOf clickableTypes a) testData
+    putStr "\nserializable objects: "
+    print$ map show$ filter (instanceWrapOf serializableTypes) testData
+    putStr "\ncall click function: "
+    print$ map (\w->case w of Just (Wrp a)->click a; Nothing->"")$ 
+            map (\(Wrp a)->asInstanceOfClickable a ) testData
+    putStr "\ncall render function: "
+    print$ map (\w->case w of Just (Wrp a)->render a; Nothing->"")$ 
+            map (\(Wrp a)->asInstanceOf renderableTypes a ) testData
+    putStr "\ncall serialize function: "
+    print$ map (\w->case w of Just (Wrp a)->serialize a; Nothing->"")$ 
+            map (\(Wrp a)->asInstanceOf serializableTypes a ) testData
+    putStr "\ncall click and render functions: "
+    print$ map (\(w1, w2)-> "click: " ++ 
+            (case w1 of Just (Wrp a)->click a; Nothing->"-") ++ 
+            "; render: " ++ 
+            (case w2 of Just (Wrp b)->render b; Nothing->"-") )$
+            map (\(Wrp a)->(asInstanceOf clickableTypes a, asInstanceOf renderableTypes a) ) testData
+    putStr "\ncall click and render functions: "
+    print$ map (\w->"click: " ++
+                    case w of
+                        Just (Wrp a)->
+                            click a ++ 
+                            "; render: " ++ 
+                            case asInstanceOf renderableTypes a of 
+                                Just (Wrp d)->render d
+                                Nothing->"-"
+                        Nothing->"-"
+                    )$
+            map (\(Wrp a)->asInstanceOf clickableTypes a ) testData
+
+</haskell>			
+
+
+--~~~~
+

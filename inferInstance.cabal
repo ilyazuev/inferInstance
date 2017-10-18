@@ -1,0 +1,43 @@
+name:                inferInstance
+version:             0.1.0.0
+synopsis:            runtime infer instance of type class
+homepage:            https://github.com/ilyazuev/inferInstance
+license:             BSD3
+license-file:        LICENSE
+author:              Ilya Zuev
+maintainer:          ilvizu@yandex.ru
+category:            Development
+build-type:          Simple
+description:
+  https://wiki.haskell.org/Fully-functional_heterogeneous_lists
+  https://wiki.haskell.org/Fully-functional_heterogeneous_lists_(ru)
+extra-source-files:  
+        ChangeLog.md
+        README.md
+cabal-version:       >=1.10
+library
+  exposed-modules:
+    Data.InferInstance
+  
+  -- Modules included in this library but not exported.
+  -- other-modules:       
+  
+  -- LANGUAGE extensions used by modules in this package.
+  -- other-extensions:    
+  
+  build-depends:       base >=4.9,
+                       template-haskell >= 2.12.0.0
+
+  default-language:    Haskell2010
+
+test-suite test
+    type: exitcode-stdio-1.0
+    main-is:         Main.hs
+    hs-source-dirs:  test
+    build-depends:   base >=4.9,
+                     template-haskell >= 2.12.0.0,
+                     inferInstance
+
+source-repository head
+  type:     git
+  location: https://github.com/ilyazuev/inferInstance.git
