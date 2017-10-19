@@ -10,7 +10,7 @@ And also we can call functions defined in the corresponding class.
 See example:
 
 
-
+```haskell
 -- Declarations.hs
 module Declarations where
 
@@ -24,10 +24,10 @@ instance Cls1 A where fn1 x = x
 data B = B deriving Show
 instance Cls1 B where fn1 x = x
 instance Cls2 B where fn2 x = x
+```
 
 
-
-
+```haskell
 -- Example.hs
 {-# LANGUAGE TemplateHaskell #-}
 import Data.InferInstance
@@ -52,3 +52,4 @@ main = do
 --[A,B]
 --[B]
 --["B"]
+```
