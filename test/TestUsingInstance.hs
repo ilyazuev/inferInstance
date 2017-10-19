@@ -17,4 +17,5 @@ callClickableAndRenderable testData = do
             WrappedInstance a<-testData, WrappedInstance c<-[asClickable a], WrappedInstance r<-[asRenderable a]]
     where
         asClickable a = $(asInstanceOf ''ClsClickable) a
-        asRenderable a = $(asInstanceOf ''ClsRenderable) a
+
+asRenderable a = $(asInstanceOf ''ClsRenderable) a

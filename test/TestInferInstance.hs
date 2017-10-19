@@ -14,5 +14,5 @@ printClickableAndSerializable testData = do
     print$ [w|w<-testData, $(instanceWrapOf ''ClsClickable) w]
     putStrLn "\nserializable objects: "
     print$ [w|w@(WrappedInstance a)<-testData, isSerializable a]
-    where
-        isSerializable a = $(instanceOf ''ClsSerializable) a
+
+isSerializable a = $(instanceOf ''ClsSerializable) a
