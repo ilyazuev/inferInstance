@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs, ConstraintKinds, KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables, FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Data.InferInstance (InferInstanceBase, WrappedInstance(..), instanceOf, instanceWrapOf, asInstanceOf) where
+module Data.InferInstance (InferInstanceBase, WrappedInstance(..), instanceOf, wrappedInstanceOf, asInstanceOf, asWrappedInstanceOf) where
 
 import Language.Haskell.TH (reify, Name, Q, Exp(ListE), Type(ConT, AppT), ExpQ, Dec(InstanceD), Info(ClassI))
 import GHC.Exts (Constraint)
@@ -23,14 +23,17 @@ instance Show (WrappedInstance a) where
 internalInstanceOf::(Foldable t, Typeable a)=> t(WrappedInstance (constraint :: * -> Constraint)) -> a -> Bool
 internalInstanceOf list = isJust . findType list
 
-internalInstanceWrapOf::[WrappedInstance (constraint :: * -> Constraint)] -> WrappedInstance (constraint2 :: * -> Constraint) -> Bool
-internalInstanceWrapOf list (WrappedInstance a) = internalInstanceOf list a
+internalWrappedInstanceOf::[WrappedInstance (constraint :: * -> Constraint)] -> WrappedInstance (constraint2 :: * -> Constraint) -> Bool
+internalWrappedInstanceOf list (WrappedInstance a) = internalInstanceOf list a
 
 findType::(Foldable t, Typeable a) => t(WrappedInstance (constraint :: * -> Constraint)) -> a -> Maybe( WrappedInstance (constraint :: * -> Constraint) )
 findType list a = find inList list
     where
         inList (WrappedInstance b) = typeOf a == typeOf b
         inList _ = False
+
+internalAsWrappedInstanceOf::Foldable t => t(WrappedInstance (constraint1 :: * -> Constraint)) -> WrappedInstance (constraint2 :: * -> Constraint) -> WrappedInstance (constraint1 :: * -> Constraint)
+internalAsWrappedInstanceOf list (WrappedInstance a) = internalAsInstanceOf list a
 
 internalAsInstanceOf::(Foldable t, Typeable a) => t(WrappedInstance (constraint :: * -> Constraint)) -> a -> WrappedInstance (constraint :: * -> Constraint)
 internalAsInstanceOf list a =
@@ -48,11 +51,14 @@ wrapToLambda fn cls = [| \a-> let list = $(types cls)::[WrappedInstance $(return
 instanceOf::Name->ExpQ
 instanceOf = wrapToLambda [| internalInstanceOf |]
 
-instanceWrapOf::Name->ExpQ
-instanceWrapOf = wrapToLambda [| internalInstanceWrapOf |]
+wrappedInstanceOf::Name->ExpQ
+wrappedInstanceOf = wrapToLambda [| internalWrappedInstanceOf |]
 
 asInstanceOf::Name->ExpQ
 asInstanceOf = wrapToLambda [| internalAsInstanceOf |]
+
+asWrappedInstanceOf::Name->ExpQ
+asWrappedInstanceOf = wrapToLambda [| internalAsWrappedInstanceOf |]
 
 reifyTypes::Name->Q [Name]
 reifyTypes cls = do
