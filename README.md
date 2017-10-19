@@ -1,6 +1,5 @@
-Library for solving of problem described in the article
+Library for solving of problem described in the article: "Fully-functional heterogeneous lists - HaskellWiki"
 
-Fully-functional heterogeneous lists - HaskellWiki
 https://wiki.haskell.org/Fully-functional_heterogeneous_lists
 
 Consider we have 2 classes and 2 types.
