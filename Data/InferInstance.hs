@@ -73,4 +73,3 @@ types cls = do
     where
         mkTypeItem typ = [| WrappedInstance (undefined:: $(return$ ConT typ)) |]
 
-

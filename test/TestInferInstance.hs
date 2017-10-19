@@ -11,9 +11,9 @@ import Triangle
 printClickableAndSerializable :: [WrappedInstance InferInstanceBase] -> IO()
 printClickableAndSerializable testData = do
     putStrLn "\nclickable objects: "
-    print$ [w|w<-testData, isClsClickable w]
+    print [w|w<-testData, isClsClickable w]
     putStrLn "\nserializable objects: "
-    print$ [w|w@(WrappedInstance a)<-testData, isSerializable a]
+    print [w|w@(WrappedInstance a)<-testData, isSerializable a]
     where
         isSerializable a = $(instanceOf ''ClsSerializable) a
 
