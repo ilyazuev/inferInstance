@@ -6,9 +6,9 @@ module Data.InferInstance (InferInstanceBase, WrappedInstance(..), instanceOf, w
 import Language.Haskell.TH (reify, Name, Q, Exp(ListE), Type(ConT, AppT), ExpQ, Dec(InstanceD), Info(ClassI))
 import GHC.Exts (Constraint)
 import Unsafe.Coerce (unsafeCoerce)
-import Data.Typeable (Typeable, typeOf)
-import Data.List (find)
-import Data.Maybe (maybe, isJust)
+import Data.Typeable (Typeable, typeOf, TypeRep)
+import Data.Maybe (maybe)
+import Data.Set (Set, fromList, member, lookupIndex, elemAt)
 
 class InferInstanceBase a
 
@@ -20,24 +20,26 @@ instance Show (WrappedInstance a) where
     show (WrappedInstance a) = show a
     show WrappedEmpty = ""
 
-internalInstanceOf::(Foldable t, Typeable a)=> t(WrappedInstance (constraint :: * -> Constraint)) -> a -> Bool
-internalInstanceOf list = isJust . findType list
+data WrappedInstanceTypeRep (constraint :: * -> Constraint) = WTR { tr::TypeRep, wr::WrappedInstance constraint }
 
-internalWrappedInstanceOf::[WrappedInstance (constraint :: * -> Constraint)] -> WrappedInstance (constraint2 :: * -> Constraint) -> Bool
-internalWrappedInstanceOf list (WrappedInstance a) = internalInstanceOf list a
+instance Eq (WrappedInstanceTypeRep a) where (==) (WTR tr1 _) (WTR tr2 _) = tr1 == tr2
 
-findType::(Foldable t, Typeable a) => t(WrappedInstance (constraint :: * -> Constraint)) -> a -> Maybe( WrappedInstance (constraint :: * -> Constraint) )
-findType list a = find inList list
-    where
-        inList (WrappedInstance b) = typeOf a == typeOf b
-        inList _ = False
+instance Ord (WrappedInstanceTypeRep a) where (<=) (WTR tr1 _) (WTR tr2 _) = tr1 <= tr2
 
-internalAsWrappedInstanceOf::Foldable t => t(WrappedInstance (constraint1 :: * -> Constraint)) -> WrappedInstance (constraint2 :: * -> Constraint) -> WrappedInstance (constraint1 :: * -> Constraint)
-internalAsWrappedInstanceOf list (WrappedInstance a) = internalAsInstanceOf list a
+internalInstanceOf::Typeable a => a -> Set(WrappedInstanceTypeRep (constraint :: * -> Constraint)) -> Bool
+internalInstanceOf a = member$ WTR (typeOf a) WrappedEmpty
 
-internalAsInstanceOf::(Foldable t, Typeable a) => t(WrappedInstance (constraint :: * -> Constraint)) -> a -> WrappedInstance (constraint :: * -> Constraint)
-internalAsInstanceOf list a =
-    maybe WrappedEmpty unwrap$ findType list a
+internalWrappedInstanceOf:: WrappedInstance (constraint2 :: * -> Constraint) -> Set(WrappedInstanceTypeRep (constraint :: * -> Constraint)) -> Bool
+internalWrappedInstanceOf (WrappedInstance a) = internalInstanceOf a
+
+internalAsWrappedInstanceOf:: WrappedInstance (constraint2 :: * -> Constraint) -> Set(WrappedInstanceTypeRep (constraint1 :: * -> Constraint)) -> WrappedInstance (constraint1 :: * -> Constraint)
+internalAsWrappedInstanceOf (WrappedInstance a) = internalAsInstanceOf a
+
+internalAsInstanceOf:: Typeable a => a -> Set(WrappedInstanceTypeRep (constraint :: * -> Constraint)) -> WrappedInstance (constraint :: * -> Constraint)
+internalAsInstanceOf a set =
+    maybe WrappedEmpty (unwrap.wr)$ do
+       i<-lookupIndex (WTR (typeOf a) WrappedEmpty) set
+       return$ elemAt i set
     where
         unwrap (WrappedInstance b) = substitute a b
         substitute::forall t1 t2 constraint. (Typeable t2, Show t2, (constraint :: * -> Constraint) t2) => t1 -> t2 -> WrappedInstance (constraint :: * -> Constraint)
@@ -46,7 +48,7 @@ internalAsInstanceOf list a =
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 wrapToLambda::ExpQ->Name->ExpQ
-wrapToLambda fn cls = [| \a-> let list = $(types cls)::[WrappedInstance $(return$ ConT cls)] in $fn list a |]
+wrapToLambda fn cls = [| \a-> let set = fromList$ $(typeReps cls)::Set(WrappedInstanceTypeRep $(return$ ConT cls)) in $fn a set |]
 
 instanceOf::Name->ExpQ
 instanceOf = wrapToLambda [| internalInstanceOf |]
@@ -65,11 +67,12 @@ reifyTypes cls = do
     ClassI _ instances <- reify cls
     return [typ | InstanceD _ _ (AppT _ (ConT typ)) _ <- instances]
 
-types::Name->ExpQ
-types cls = do
+typeReps::Name->ExpQ
+typeReps cls = do
     types<-reifyTypes cls
     typesExp<-mapM mkTypeItem types
     return$ ListE$ typesExp
     where
-        mkTypeItem typ = [| WrappedInstance (undefined:: $(return$ ConT typ)) |]
+        mkTypeItem typ = [| WTR (typeOf $(undefTyp typ)) (WrappedInstance $(undefTyp typ)) |]
+        undefTyp typ = [| (undefined:: $(return$ ConT typ)) |]
 
